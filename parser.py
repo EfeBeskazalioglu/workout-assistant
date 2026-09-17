@@ -33,9 +33,10 @@ class Exercise(BaseModel):
     weight: Optional[float] = None
     unit: Optional[Unit] = None
     rpe: Optional[int] = None
-
+#Modele verilen
 class WorkoutLog(BaseModel):
     exercises: list[Exercise]
+#Modelden beklenilen, model workoutrecordu görmez bundan kaynaklı şemaya uydurmak için saçma veri üretmesinden kaçınılıyor
 class WorkoutRecord(BaseModel):
     exercises: list[Exercise] = Field(min_length=1)
     workout_date: date = Field(default_factory=date.today)
