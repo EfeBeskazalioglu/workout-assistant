@@ -4,9 +4,10 @@ import json
 import time
 from enum import Enum
 from functools import wraps
-from pydantic import BaseModel,Field
+from pydantic import BaseModel,Field, ValidationError
 from typing import Optional
 from openai import OpenAI
+from datetime import date
 import instructor
 load_dotenv()
 api_key = os.getenv("OPENROUTER_API_KEY")
@@ -35,6 +36,9 @@ class Exercise(BaseModel):
 
 class WorkoutLog(BaseModel):
     exercises: list[Exercise]
+class WorkoutRecord(BaseModel):
+    exercises: list[Exercise] = Field(min_length=1)
+    workout_date: date = Field(default_factory=date.today)
 
 class WorkoutParser:
     def __init__(self,api_key,model):
@@ -55,19 +59,22 @@ class WorkoutParser:
             response_model=WorkoutLog,
             temperature=0
         )
-        return log
+        record = WorkoutRecord(exercises=log.exercises)
+        return record
 
 
 
 test_cases = [
-    "benched 120 pounds for 9 reps",
-    "i did 3x15 90kilograms squat",
-    "benched 135 lbs for 5 reps",
-    "bugün 4x8 mekik çektim"
+    "chest day felt strong"
 ]
 
 workoutparser = WorkoutParser(api_key,model)
 for case in test_cases:
-    log = workoutparser.parse(case)
-    for exercise in log.exercises:
-        print(exercise)
+    try:
+        log = workoutparser.parse(case)
+        print(log)
+        for exercise in log.exercises:
+            print(exercise)
+    except ValidationError as e:
+        print(f"PARSE FAILED: {case}")
+        print(e)
