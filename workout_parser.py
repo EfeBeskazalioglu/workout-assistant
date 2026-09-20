@@ -63,19 +63,18 @@ class WorkoutParser:
         record = WorkoutRecord(exercises=log.exercises)
         return record
 
+if __name__ == "__main__":
+    test_cases = [
+        "chest day felt strong"
+    ]
 
-
-test_cases = [
-    "chest day felt strong"
-]
-
-workoutparser = WorkoutParser(api_key,model)
-for case in test_cases:
-    try:
-        log = workoutparser.parse(case)
-        print(log)
-        for exercise in log.exercises:
-            print(exercise)
-    except ValidationError as e:
-        print(f"PARSE FAILED: {case}")
-        print(e)
+    workoutparser = WorkoutParser(api_key,model)
+    for case in test_cases:
+        try:
+            log = workoutparser.parse(case)
+            print(log)
+            for exercise in log.exercises:
+                print(exercise)
+        except ValidationError as e:
+            print(f"PARSE FAILED: {case}")
+            print(e)
