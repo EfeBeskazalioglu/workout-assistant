@@ -26,7 +26,7 @@ def timer(func):
 class Unit(str, Enum):
     KG = "kg"
     LB = "lb"
-class Exercise(BaseModel):
+class ExerciseLLM(BaseModel):
     exercise: str = Field(description="lowercase letters,standard name")
     sets: Optional[int] = Field(default=None,description="If none then do not assume")
     reps: Optional[int] = None
@@ -34,11 +34,11 @@ class Exercise(BaseModel):
     unit: Optional[Unit] = None
     rpe: Optional[int] = None
 #Modele verilen
-class WorkoutLog(BaseModel):
-    exercises: list[Exercise]
+class WorkoutLLM(BaseModel):
+    exercises: list[ExerciseLLM]
 #Modelden beklenilen, model workoutrecordu görmez bundan kaynaklı şemaya uydurmak için saçma veri üretmesinden kaçınılıyor
 class WorkoutRecord(BaseModel):
-    exercises: list[Exercise] = Field(min_length=1)
+    exercises: list[ExerciseLLM] = Field(min_length=1)
     workout_date: date = Field(default_factory=date.today)
 
 class WorkoutParser:
@@ -57,7 +57,7 @@ class WorkoutParser:
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": text},
             ],
-            response_model=WorkoutLog,
+            response_model=WorkoutLLM,
             temperature=0
         )
         record = WorkoutRecord(exercises=log.exercises)
