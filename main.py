@@ -1,4 +1,5 @@
 from datetime import date
+import logging
 from sqlalchemy.orm import selectinload
 from fastapi import FastAPI,HTTPException
 from pydantic import BaseModel,ValidationError
@@ -7,6 +8,12 @@ from database import SessionLocal, WorkoutDB, ExerciseDB
 from instructor.core import InstructorRetryException
 from config import settings
 app = FastAPI()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 class ParseRequest(BaseModel):
     text: str
@@ -28,7 +35,7 @@ class WorkoutOut(BaseModel):
     model_config = {"from_attributes": True}
 
 parser = WorkoutParser(api_key=settings.llm_api_key.get_secret_value(),model=settings.llm_model,timeout=settings.timeout,base_url=settings.llm_base_url)
-
+logger.info("LLM model=%s base_url=%s timeout=%.2f",settings.llm_model,settings.llm_base_url,settings.timeout)
 def parse_or_error(text):
     try:
         return parser.parse(text)

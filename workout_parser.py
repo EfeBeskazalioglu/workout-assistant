@@ -1,20 +1,28 @@
 import time
+import logging
 from enum import Enum
 from functools import wraps
-from pydantic import BaseModel,Field, ValidationError
+from pydantic import BaseModel,Field
 from typing import Optional
 from openai import OpenAI
 from datetime import date
 import instructor
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """You are a parser that converts exercise sentences into structured workout data."""
 def timer(func):
     @wraps(func)
     def wrapper(*args,**kwargs):
         t1 = time.time()
-        func_to_return = func(*args,**kwargs)
+        try:
+            func_to_return = func(*args,**kwargs)
+        except Exception as e:
+            t2 = time.time()
+            logger.warning("%s failed after %.2f s: %s",func.__name__,t2-t1,e)
+            raise
         t2 = time.time()
-        print(t2-t1)
+        logger.info("%s took %.2f s", func.__name__, t2 - t1)
         return func_to_return
     return wrapper
 class Unit(str, Enum):
@@ -37,12 +45,12 @@ class WorkoutRecord(BaseModel):
 
 class WorkoutParser:
     def __init__(self,api_key,model,timeout,base_url):
-        self.api_key = api_key
         self.model = model
         self.client = instructor.from_openai(OpenAI(
     base_url=base_url,
     api_key=api_key,
     timeout=timeout,
+    max_retries=1,
     ),
     mode=instructor.Mode.JSON_SCHEMA
     )
@@ -60,20 +68,3 @@ class WorkoutParser:
         )
         record = WorkoutRecord(exercises=log.exercises)
         return record
-
-if __name__ == "__main__":
-    from config import settings
-    test_cases = [
-        "chest day felt strong"
-    ]
-
-    workoutparser = WorkoutParser(settings.llm_api_key.get_secret_value(),settings.llm_model,settings.timeout,settings.llm_base_url)
-    for case in test_cases:
-        try:
-            log = workoutparser.parse(case)
-            print(log)
-            for exercise in log.exercises:
-                print(exercise)
-        except ValidationError as e:
-            print(f"PARSE FAILED: {case}")
-            print(e)
