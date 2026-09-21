@@ -2,8 +2,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field , SecretStr
 
 class Settings(BaseSettings):
-    openrouter_api_key: SecretStr
-    model: str =Field(default="nvidia/nemotron-3.5-lightning:free")
+    llm_api_key: SecretStr
+    llm_model: str
+    llm_base_url: str
     timeout: float = Field(default=60)
     model_config = SettingsConfigDict(env_file=".env")
 settings = Settings()

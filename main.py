@@ -27,7 +27,7 @@ class WorkoutOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
-parser = WorkoutParser(api_key=settings.openrouter_api_key.get_secret_value(),model=settings.model,timeout=settings.timeout)
+parser = WorkoutParser(api_key=settings.llm_api_key.get_secret_value(),model=settings.llm_model,timeout=settings.timeout,base_url=settings.llm_base_url)
 
 def parse_or_error(text):
     try:
@@ -51,7 +51,7 @@ def create_workout(request: ParseRequest):
     workout = WorkoutDB(workout_date=record.workout_date)
 
     for e in record.exercises:
-        exercise = ExerciseDB(exercise=e.exercise,sets=e.sets,reps=e.reps,weight=e.weight,unit=e.unit,rpe=e.rpe)
+        exercise = ExerciseDB(exercise=e.exercise_name,sets=e.sets,reps=e.reps,weight=e.weight,unit=e.unit,rpe=e.rpe)
         workout.exercises.append(exercise)
 
     with SessionLocal() as session:

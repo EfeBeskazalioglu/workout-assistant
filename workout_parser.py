@@ -21,7 +21,7 @@ class Unit(str, Enum):
     KG = "kg"
     LB = "lb"
 class ExerciseLLM(BaseModel):
-    exercise: str = Field(description="lowercase letters,standard name")
+    exercise_name: str = Field(description="name of the exercise,standard name,lowercase")
     sets: Optional[int] = Field(default=None,description="If none then do not assume")
     reps: Optional[int] = None
     weight: Optional[float] = None
@@ -36,14 +36,16 @@ class WorkoutRecord(BaseModel):
     workout_date: date = Field(default_factory=date.today)
 
 class WorkoutParser:
-    def __init__(self,api_key,model,timeout):
+    def __init__(self,api_key,model,timeout,base_url):
         self.api_key = api_key
         self.model = model
         self.client = instructor.from_openai(OpenAI(
-    base_url="https://openrouter.ai/api/v1",
+    base_url=base_url,
     api_key=api_key,
     timeout=timeout,
-    ))
+    ),
+    mode=instructor.Mode.JSON_SCHEMA
+    )
     @timer   
     def parse(self,text):
         log = self.client.chat.completions.create(
@@ -53,7 +55,8 @@ class WorkoutParser:
                 {"role": "user", "content": text},
             ],
             response_model=WorkoutLLM,
-            temperature=0
+            temperature=0,
+            max_retries=1,
         )
         record = WorkoutRecord(exercises=log.exercises)
         return record
@@ -64,7 +67,7 @@ if __name__ == "__main__":
         "chest day felt strong"
     ]
 
-    workoutparser = WorkoutParser(settings.openrouter_api_key.get_secret_value(),settings.model,settings.timeout)
+    workoutparser = WorkoutParser(settings.llm_api_key.get_secret_value(),settings.llm_model,settings.timeout,settings.llm_base_url)
     for case in test_cases:
         try:
             log = workoutparser.parse(case)
