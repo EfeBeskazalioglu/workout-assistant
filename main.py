@@ -4,6 +4,7 @@ from fastapi import FastAPI,HTTPException
 from pydantic import BaseModel,ValidationError
 from workout_parser import WorkoutParser
 from database import SessionLocal, WorkoutDB, ExerciseDB
+from instructor.core import InstructorRetryException
 from config import settings
 app = FastAPI()
 
@@ -26,25 +27,26 @@ class WorkoutOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
-parser = WorkoutParser(api_key=settings.openrouter_api_key.get_secret_value(),model=settings.model)
+parser = WorkoutParser(api_key=settings.openrouter_api_key.get_secret_value(),model=settings.model,timeout=settings.timeout)
 
-def parse_or_422(text):
+def parse_or_error(text):
     try:
         return parser.parse(text)
     except ValidationError:
         raise HTTPException(status_code=422,detail="Be more specific about your workout!")
-
+    except InstructorRetryException:
+        raise HTTPException(status_code=503,headers={"Retry-After":"30"},detail="Try again some time later.")
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 @app.post("/parse")
 def parse_workout(request: ParseRequest):
-    return parse_or_422(text=request.text)
+    return parse_or_error(text=request.text)
 
 @app.post("/workouts",response_model=WorkoutOut)
 def create_workout(request: ParseRequest):
-    record = parse_or_422(text=request.text)
+    record = parse_or_error(text=request.text)
 
     workout = WorkoutDB(workout_date=record.workout_date)
 
