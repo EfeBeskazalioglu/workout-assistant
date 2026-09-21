@@ -17,10 +17,11 @@ Model: `nvidia/nemotron-3.5-lightning:free` (OpenRouter)
 | A7 | Kısıt modeli hallucination'a zorlayabilir | kapandı 17 Eyl |
 | B1 | Model format talimatını terk ediyor | kapandı 16 Eyl |
 | B2 | JSON sonrası fazladan içerik | kapandı 16 Eyl |
+| B3 | TOOLS modunda model şema alan adlarını takip etmiyor → gizli retry'lar, 40 sn | kapandı 21 Eyl |
 | C1 | Boş / anlamsız girdi kayıt üretiyor | kapandı 17 Eyl (iki kez açıldı) |
 | D1 | temperature=0 deterministik değil | kapanmaz (LLM'in doğası) |
-| D2 | Yanıt süresi değişken | kapanmaz (altyapı) |
-| D3 | Upstream timeout → API 500 dönüyor | **açık** (Hafta 5) |
+| D2 | Yanıt süresi değişken | kapanmaz (altyapı) — ama kısmen yanlış yorumlandı, bkz. B3 |
+| D3 | Upstream timeout → API 500 dönüyor | kapandı 21 Eyl (503 + Retry-After) |
 
 ---
 
@@ -78,6 +79,15 @@ Model: `nvidia/nemotron-3.5-lightning:free` (OpenRouter)
 - **Hata (temp=0):** `JSONDecodeError: Extra data: line 1 column 122`
 - **Kapanış:** B1 ile aynı.
 
+### B3. TOOLS modunda şema takip edilmiyor → gizli retry'lar — KAPANDI (21 Eyl)
+- **Bağlam:** Sağlayıcı yavaşlığı sanılan sorunu çözmek için OpenRouter → NVIDIA → Groq geçildi, 5 model denendi. Hepsinde 30-50 sn. Groq'ta çıplak çağrı **1.28 sn** çıktı — yavaşlık sağlayıcıda değilmiş.
+- **Gözlem (`max_retries=0` ile):** Groq tool call'u sunucu tarafında doğruluyor, 400 `tool_use_failed` döndü. Alan `exercise` iken model `name` yazdı; `exercise_name` yapınca yine `name`; `name` yapınca **`exercise`** yazdı. Model şemadaki alan adını okumuyor, iki makul isim arasında rastgele seçiyor.
+- **Ölçüm (gpt-oss-20b, Groq, 5 deneme, retry yok):** `TOOLS` 3/5 · `JSON_SCHEMA` **5/5, <1 sn** · `JSON` 5/5, 3-10 sn.
+- **Sorun:** Instructor varsayılan TOOLS modunda uymayan cevabı modele geri gönderip tekrar deniyordu; 40 sn = art arda ~1 sn'lik denemeler. `@timer` toplam süreyi ölçtüğü için deneme sayısı görünmüyordu.
+- **Kapanış:** `instructor.from_openai(..., mode=instructor.Mode.JSON_SCHEMA)` — sağlayıcı modeli üretim sırasında şemaya kilitliyor. `max_retries=1`.
+- **Sınır:** `JSON_SCHEMA` sağlayıcının structured output desteğine bağlı. Sağlayıcı değişirse bu ölçüm tekrarlanmalı.
+- **Ders:** Bileşen değiştirmeden önce zamanın *nereye* gittiğini ölç. Açıklama/isim değiştirmek modelin güçlü önseçimini yenemedi — modelle kavga etme, ya eğilimine uy ya da çıktıyı kısıtla. Retry sayısı loglanmalı (Hafta 5 logging).
+
 ---
 
 ## C. Tasarım boşluğu
@@ -104,11 +114,12 @@ Model: `nvidia/nemotron-3.5-lightning:free` (OpenRouter)
 - **Instructor'lı (16 Eyl):** ilk çağrı 17 sn, sonrakiler 4-8 sn
 - **17 Eyl:** 4.5 / 6.4 / 10.8 / 21 / 42 / 77 sn — aynı gün içinde
 - **Sonuç:** FastAPI endpoint'i yazılırken timeout kararı bu veriye dayanacak.
+- **21 Eyl düzeltmesi:** Bu sürelerin bir kısmı muhtemelen sağlayıcı kuyruğu değil, Instructor TOOLS modundaki gizli retry'lardı (bkz. B3). `@timer` deneme sayısını göstermiyordu. Groq + JSON_SCHEMA ile tek çağrı <1 sn.
 
-### D3. Upstream timeout → API 500 dönüyor — AÇIK
+### D3. Upstream timeout → API 500 dönüyor — KAPANDI (21 Eyl)
 - **Tarih:** 21 Eyl · **Girdi:** "chest day felt strong" (girdiyle ilgisiz — aynı cümle 2-3 kez tekrar edilince normal 422 davranışı geldi)
 - **Gözlem:** OpenRouter `choices=None`, `error={'message': 'A Timeout Occurred', 'code': 504}` döndü. Instructor boş cevabı parse edemedi, reask denedi, reask sırasında kendisi `TypeError: 'NoneType' object is not subscriptable` ile çöktü → `InstructorRetryException`.
 - **Sorun:** Bu yakalanmıyor; API'den çağrılsa kullanıcı **500** alırdı — "sunucuda beklenmedik bir şey kırıldı". Ama bu beklenmedik değil, ücretsiz kuyrukta düzenli olacak.
 - **Karar:** 5xx ailesi — kullanıcı hatalı bir şey göndermedi, aynı istek sonra tekrar denenince başarılı olabilir. **503 Service Unavailable** + `Retry-After`, mesaj: "şu an cevap veremiyoruz, biraz sonra tekrar deneyin". (504 de savunulabilir ama API saf bir proxy değil.)
-- **Yapılacak (Hafta 5):** `InstructorRetryException` / upstream hatalarını yakala → 503. Timeout süresini D2 verisine göre belirle. Retry politikası: kaç deneme, hangi hatalarda.
+- **Kapanış (21 Eyl, PR #5):** `parse_or_error` içinde `InstructorRetryException` → `HTTPException(503, headers={"Retry-After": "30"})`. Timeout artık ayar (`settings.timeout`, varsayılan 60 sn), parser'a parametre olarak veriliyor. `timeout=0.1` ile kasten tetiklenip doğrulandı. Not: bu davranış Instructor sürümüne bağlı (1.17 client timeout'unu da aynı istisnaya sarıyor) — Faz 2'de testle sabitlenecek.
 - **Ders:** Traceback'i aşağıdan yukarı oku — Instructor'ın kendi çöküşü gürültüydü, asıl olay `<completion>` içindeki 504'tü.
