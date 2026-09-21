@@ -1,5 +1,4 @@
 import time
-from config import settings
 from enum import Enum
 from functools import wraps
 from pydantic import BaseModel,Field, ValidationError
@@ -37,12 +36,13 @@ class WorkoutRecord(BaseModel):
     workout_date: date = Field(default_factory=date.today)
 
 class WorkoutParser:
-    def __init__(self,api_key,model):
+    def __init__(self,api_key,model,timeout):
         self.api_key = api_key
         self.model = model
         self.client = instructor.from_openai(OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=api_key,
+    timeout=timeout,
     ))
     @timer   
     def parse(self,text):
@@ -59,11 +59,12 @@ class WorkoutParser:
         return record
 
 if __name__ == "__main__":
+    from config import settings
     test_cases = [
         "chest day felt strong"
     ]
 
-    workoutparser = WorkoutParser(settings.openrouter_api_key.get_secret_value(),settings.model)
+    workoutparser = WorkoutParser(settings.openrouter_api_key.get_secret_value(),settings.model,settings.timeout)
     for case in test_cases:
         try:
             log = workoutparser.parse(case)
