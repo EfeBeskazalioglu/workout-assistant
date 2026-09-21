@@ -1,6 +1,5 @@
-import os
-from dotenv import load_dotenv
 import time
+from config import settings
 from enum import Enum
 from functools import wraps
 from pydantic import BaseModel,Field, ValidationError
@@ -8,9 +7,6 @@ from typing import Optional
 from openai import OpenAI
 from datetime import date
 import instructor
-load_dotenv()
-api_key = os.getenv("OPENROUTER_API_KEY")
-model = "nvidia/nemotron-3.5-lightning:free"
 
 SYSTEM_PROMPT = """You are a parser that converts exercise sentences into structured workout data."""
 def timer(func):
@@ -67,7 +63,7 @@ if __name__ == "__main__":
         "chest day felt strong"
     ]
 
-    workoutparser = WorkoutParser(api_key,model)
+    workoutparser = WorkoutParser(settings.openrouter_api_key.get_secret_value(),settings.model)
     for case in test_cases:
         try:
             log = workoutparser.parse(case)
