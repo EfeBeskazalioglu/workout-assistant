@@ -20,6 +20,7 @@ Model: `nvidia/nemotron-3.5-lightning:free` (OpenRouter)
 | C1 | Boş / anlamsız girdi kayıt üretiyor | kapandı 17 Eyl (iki kez açıldı) |
 | D1 | temperature=0 deterministik değil | kapanmaz (LLM'in doğası) |
 | D2 | Yanıt süresi değişken | kapanmaz (altyapı) |
+| D3 | Upstream timeout → API 500 dönüyor | **açık** (Hafta 5) |
 
 ---
 
@@ -103,3 +104,11 @@ Model: `nvidia/nemotron-3.5-lightning:free` (OpenRouter)
 - **Instructor'lı (16 Eyl):** ilk çağrı 17 sn, sonrakiler 4-8 sn
 - **17 Eyl:** 4.5 / 6.4 / 10.8 / 21 / 42 / 77 sn — aynı gün içinde
 - **Sonuç:** FastAPI endpoint'i yazılırken timeout kararı bu veriye dayanacak.
+
+### D3. Upstream timeout → API 500 dönüyor — AÇIK
+- **Tarih:** 21 Eyl · **Girdi:** "chest day felt strong" (girdiyle ilgisiz — aynı cümle 2-3 kez tekrar edilince normal 422 davranışı geldi)
+- **Gözlem:** OpenRouter `choices=None`, `error={'message': 'A Timeout Occurred', 'code': 504}` döndü. Instructor boş cevabı parse edemedi, reask denedi, reask sırasında kendisi `TypeError: 'NoneType' object is not subscriptable` ile çöktü → `InstructorRetryException`.
+- **Sorun:** Bu yakalanmıyor; API'den çağrılsa kullanıcı **500** alırdı — "sunucuda beklenmedik bir şey kırıldı". Ama bu beklenmedik değil, ücretsiz kuyrukta düzenli olacak.
+- **Karar:** 5xx ailesi — kullanıcı hatalı bir şey göndermedi, aynı istek sonra tekrar denenince başarılı olabilir. **503 Service Unavailable** + `Retry-After`, mesaj: "şu an cevap veremiyoruz, biraz sonra tekrar deneyin". (504 de savunulabilir ama API saf bir proxy değil.)
+- **Yapılacak (Hafta 5):** `InstructorRetryException` / upstream hatalarını yakala → 503. Timeout süresini D2 verisine göre belirle. Retry politikası: kaç deneme, hangi hatalarda.
+- **Ders:** Traceback'i aşağıdan yukarı oku — Instructor'ın kendi çöküşü gürültüydü, asıl olay `<completion>` içindeki 504'tü.

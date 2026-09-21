@@ -2,9 +2,9 @@ from datetime import date
 from sqlalchemy.orm import selectinload
 from fastapi import FastAPI,HTTPException
 from pydantic import BaseModel,ValidationError
-from workout_parser import WorkoutParser ,api_key,model
+from workout_parser import WorkoutParser
 from database import SessionLocal, WorkoutDB, ExerciseDB
-
+from config import settings
 app = FastAPI()
 
 class ParseRequest(BaseModel):
@@ -26,7 +26,7 @@ class WorkoutOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
-parser = WorkoutParser(api_key=api_key,model=model)
+parser = WorkoutParser(api_key=settings.openrouter_api_key.get_secret_value(),model=settings.model)
 
 def parse_or_422(text):
     try:
