@@ -123,3 +123,11 @@ Model: `nvidia/nemotron-3.5-lightning:free` (OpenRouter)
 - **Karar:** 5xx ailesi — kullanıcı hatalı bir şey göndermedi, aynı istek sonra tekrar denenince başarılı olabilir. **503 Service Unavailable** + `Retry-After`, mesaj: "şu an cevap veremiyoruz, biraz sonra tekrar deneyin". (504 de savunulabilir ama API saf bir proxy değil.)
 - **Kapanış (21 Eyl, PR #5):** `parse_or_error` içinde `InstructorRetryException` → `HTTPException(503, headers={"Retry-After": "30"})`. Timeout artık ayar (`settings.timeout`, varsayılan 60 sn), parser'a parametre olarak veriliyor. `timeout=0.1` ile kasten tetiklenip doğrulandı. Not: bu davranış Instructor sürümüne bağlı (1.17 client timeout'unu da aynı istisnaya sarıyor) — Faz 2'de testle sabitlenecek.
 - **Ders:** Traceback'i aşağıdan yukarı oku — Instructor'ın kendi çöküşü gürültüydü, asıl olay `<completion>` içindeki 504'tü.
+
+
+### D4. Groq rate limit (429) — KAPANDI (24 Eyl)
+- **Test:** `/parse`'a art arda 40 istek. Sonuç: 39 × 200, 1 × 503.
+- **Limit:** Dakikada 8000 token, istek başı yaklaşık 700 token → dakikada ~11 istek.
+- **Gözlem:** 429 gelince SDK bekleyip tekrar deniyor; cevap verme süresi 4-5 saniyeye çıkıyor.
+- **503:** Tekrar deneme de 429 alırsa Instructor hatayı `InstructorRetryException`'a sarıyor → `parse_or_error` 503 dönüyor. Groq'un hata mesajı (org ID dahil) sadece log'da, istemciye sabit mesaj gidiyor.
+- **Neden 429 değil 503:** Aşılan limit istemcinin değil, bizim kullandığımız LLM sağlayıcısının (Groq); sorun sunucu tarafında olduğu için 503 daha uygun.
