@@ -2,7 +2,7 @@ from datetime import date
 import logging
 from sqlalchemy.orm import selectinload
 from fastapi import FastAPI,HTTPException
-from pydantic import BaseModel,ValidationError
+from pydantic import BaseModel,ValidationError,Field
 from workout_parser import WorkoutParser
 from database import SessionLocal, WorkoutDB, ExerciseDB
 from instructor.core import InstructorRetryException
@@ -16,7 +16,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class ParseRequest(BaseModel):
-    text: str
+    text: str = Field(min_length = 1)
 
 class ExerciseOut(BaseModel):
     exercise: str
@@ -36,6 +36,7 @@ class WorkoutOut(BaseModel):
 
 parser = WorkoutParser(api_key=settings.llm_api_key.get_secret_value(),model=settings.llm_model,timeout=settings.timeout,base_url=settings.llm_base_url)
 logger.info("LLM model=%s base_url=%s timeout=%.2f",settings.llm_model,settings.llm_base_url,settings.timeout)
+
 def parse_or_error(text):
     try:
         return parser.parse(text)
@@ -43,6 +44,7 @@ def parse_or_error(text):
         raise HTTPException(status_code=422,detail="Be more specific about your workout!")
     except InstructorRetryException:
         raise HTTPException(status_code=503,headers={"Retry-After":"30"},detail="Try again some time later.")
+    
 @app.get("/health")
 def health():
     return {"status": "ok"}
