@@ -32,6 +32,7 @@ httptools==0.8.0
 httpx==0.28.1
 httpx2==2.13.0
 idna==3.19
+iniconfig==2.3.0
 instructor==1.17.0
 Jinja2==3.1.6
 jiter==0.14.0
@@ -40,6 +41,8 @@ MarkupSafe==3.0.3
 mdurl==0.1.2
 multidict==6.8.0
 openai==3.3.0
+packaging==26.3
+pluggy==1.6.0
 propcache==0.5.4
 pyasn1==0.6.4
 pyasn1_modules==0.4.2
@@ -49,6 +52,7 @@ pydantic-extra-types==2.11.1
 pydantic-settings==2.15.0
 pydantic_core==2.46.5
 Pygments==2.21.0
+pytest==9.1.1
 python-dotenv==1.2.3
 python-multipart==0.0.32
 PyYAML==6.0.3
