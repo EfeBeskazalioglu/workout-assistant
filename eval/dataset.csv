@@ -1,0 +1,6 @@
+id,input,source,exercise,sets,reps,weight,unit,rpe
+1,"incline db press 35x5 2 set rpe 9.5",real,incline-db-press,2,5,35,,9.5
+2,"pec fly 60x6 1set rpe 9.5",real,pec-fly,1,6,60,,9.5
+3,"shd press 25x7 2 set rpe 10",real,shoulder-press,2,7,25,,10
+4,"lateral raise 10x10 rpe 9",real,lateral-raise,1,10,10,,9
+5,"triceps pushdown 60x7 2 set rpe 10",real,triceps-pushdown,2,7,60,,10
