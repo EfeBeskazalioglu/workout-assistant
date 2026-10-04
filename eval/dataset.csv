@@ -2,5 +2,33 @@ id,input,source,exercise,sets,reps,weight,unit,rpe
 1,"incline db press 35x5 2 set rpe 9.5",real,incline-db-press,2,5,35,,9.5
 2,"pec fly 60x6 1set rpe 9.5",real,pec-fly,1,6,60,,9.5
 3,"shd press 25x7 2 set rpe 10",real,shoulder-press,2,7,25,,10
-4,"lateral raise 10x10 rpe 9",real,lateral-raise,1,10,10,,9
+4,"lateral raise 10x10 rpe 9",real,lateral-raise,,10,10,,9
 5,"triceps pushdown 60x7 2 set rpe 10",real,triceps-pushdown,2,7,60,,10
+6,"tricep extension 40x8 2 set rpe 9.5",real,triceps-extension,2,8,40,,9.5
+7,"wide grip latt pulldown 8 tekrar 80 6 tekrar 85",real,wide-grip-lat-pulldown,,8,80,,
+7,"wide grip latt pulldown 8 tekrar 80 6 tekrar 85",real,wide-grip-lat-pulldown,,6,85,,
+8,"t bar row 2x6 45",real,t-bar-row,2,6,45,,
+10,"face pull 40x8 2",real,face-pull,2,8,40,,
+11,"seated hammer 2 12,5 kg 8 tekrar",real,seated-hammer-curl,2,8,12.5,kg,
+12,"leg ext 90 kg10 2",real,leg-extension,2,10,90,kg,
+14,"7x80 6x85 latt pulldown narrow",real,narrow-grip-lat-pulldown,,7,80,,
+14,"7x80 6x85 latt pulldown narrow",real,narrow-grip-lat-pulldown,,6,85,,
+16,"db press 8x30 6x35 5x35 lateral 2x 10kg bayesian curl tek kol 25kgx8 30x5",real,db-press,,8,30,,
+16,"db press 8x30 6x35 5x35 lateral 2x 10kg bayesian curl tek kol 25kgx8 30x5",real,db-press,,6,35,,
+16,"db press 8x30 6x35 5x35 lateral 2x 10kg bayesian curl tek kol 25kgx8 30x5",real,db-press,,5,35,,
+16,"db press 8x30 6x35 5x35 lateral 2x 10kg bayesian curl tek kol 25kgx8 30x5",real,lateral-raise,2,,10,kg,
+16,"db press 8x30 6x35 5x35 lateral 2x 10kg bayesian curl tek kol 25kgx8 30x5",real,single-arm-bayesian-curl,,8,25,kg,
+16,"db press 8x30 6x35 5x35 lateral 2x 10kg bayesian curl tek kol 25kgx8 30x5",real,single-arm-bayesian-curl,,5,30,,
+18,"leg ext 90-95 10 8 leg curl 80 8 90 6",real,leg-extension,,10,90,,
+18,"leg ext 90-95 10 8 leg curl 80 8 90 6",real,leg-extension,,8,95,,
+18,"leg ext 90-95 10 8 leg curl 80 8 90 6",real,leg-curl,,8,80,,
+18,"leg ext 90-95 10 8 leg curl 80 8 90 6",real,leg-curl,,6,90,,
+19,"press salonda yok yerine hex swuat yapıcam 60x8 x2",real,hex-squat,2,8,60,,
+21,"leg raise 3x8",real,leg-raise,3,8,,,
+26,"40x9 45x7 yaptım triceps extension dün",real,triceps-extension,,9,40,,
+26,"40x9 45x7 yaptım triceps extension dün",real,triceps-extension,,7,45,,
+27,"85x7x6 eide grip lat pull, 45x5x5 t bar",real,wide-grip-lat-pulldown,,7,85,,
+27,"85x7x6 eide grip lat pull, 45x5x5 t bar",real,wide-grip-lat-pulldown,,6,85,,
+27,"85x7x6 eide grip lat pull, 45x5x5 t bar",real,t-bar-row,2,5,45,,
+30,"hammer 8x12,5x2",real,hammer-curl,2,8,12.5,,
+32,"2x25x6 shoulder press",real,shoulder-press,2,6,25,,
