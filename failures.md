@@ -5,6 +5,8 @@ Model: `nvidia/nemotron-3.5-lightning:free` (OpenRouter)
 - **15 Eyl:** çıplak API — prompt'ta JSON isteniyor, `json.loads()` ile parse ediliyor.
 - **16 Eyl:** Pydantic + Instructor `response_model`. Prompt tek cümleye indi, şema tek kaynakta.
 - **17 Eyl:** İki katmanlı şema — `WorkoutLog` (modele gösterilen) ve `WorkoutRecord` (uygulamanın kaydı) ayrıldı.
+- **21 Eyl'den beri:** Groq, `openai/gpt-oss-20b`, Instructor `JSON_SCHEMA` modu.
+- **4 Eki:** Eval ilk koşum — `eval/run_eval.py`, 20 etiketli gerçek girdi (`eval/dataset.csv`). Bulgular aşağıda "4 Eki" bölümünde.
 
 | # | Bulgu | Durum |
 |---|---|---|
@@ -22,6 +24,14 @@ Model: `nvidia/nemotron-3.5-lightning:free` (OpenRouter)
 | D1 | temperature=0 deterministik değil | kapanmaz (LLM'in doğası) |
 | D2 | Yanıt süresi değişken | kapanmaz (altyapı) — ama kısmen yanlış yorumlandı, bkz. B3 |
 | D3 | Upstream timeout → API 500 dönüyor | kapandı 21 Eyl (503 + Retry-After) |
+| D4 | Groq rate limit (429) | kapandı 24 Eyl (503) |
+| A8 | `x` gösterimi "set × rep" sanılıyor, ağırlık kayboluyor | **açık** — prompt adayı |
+| A9 | RPE ondalığı kesiliyor (9.5 → 10) | **açık** — `int` → `float` |
+| A10 | Metinde olmayan birim uyduruluyor (`kg`) | **açık** |
+| A11 | Kısaltma / typo egzersiz adı kanonikleşmiyor | **açık** — Faz 3 (A1 ile aynı yön) |
+| B4 | Uzun çoklu girdide `400 json_validate_failed` | **açık** — tekrarlanıyor mu bakılacak |
+| C2 | Metindeki zaman ifadesi ("dün") tarihe yansımıyor | kapanmaz (bilinçli kabul) |
+| C3 | Şema egzersiz başına tek set tutuyor | **açık** — Hafta 4 (Alembic) adayı |
 
 ---
 
@@ -131,3 +141,49 @@ Model: `nvidia/nemotron-3.5-lightning:free` (OpenRouter)
 - **Gözlem:** 429 gelince SDK bekleyip tekrar deniyor; cevap verme süresi 4-5 saniyeye çıkıyor.
 - **503:** Tekrar deneme de 429 alırsa Instructor hatayı `InstructorRetryException`'a sarıyor → `parse_or_error` 503 dönüyor. Groq'un hata mesajı (org ID dahil) sadece log'da, istemciye sabit mesaj gidiyor.
 - **Neden 429 değil 503:** Aşılan limit istemcinin değil, bizim kullandığımız LLM sağlayıcısının (Groq); sorun sunucu tarafında olduğu için 503 daha uygun.
+---
+
+## 4 Eki — Eval ilk koşum bulguları
+
+Kaynak: `python -m eval.run_eval`, 20 girdi, girdiler arası 6 sn (D4). Id'ler `eval/dataset.csv`'deki satırlar. Skor henüz yok (eşleştirme + skorlama sonraki adım) — bunlar çıktıya bakarak görülen örüntüler.
+
+### A8. `x` gösterimi "set × rep" sanılıyor — AÇIK
+- **Girdiler:** 2 `pec fly 60x6` → sets=6, reps=60, ağırlık yok · 3 `shd press 25x7` → reps=25, ağırlık yok · 4 `lateral raise 10x10` → sets=10, ağırlık yok · 32 `2x25x6` → reps=25, weight=6 · 30 `hammer 8x12,5x2` → virgülden bölünüp iki anlamsız kayıt.
+- **Sorun:** Etiketleme kuralı 2'de çürütülen "AxB = set × rep" varsayımını model yapıyor. Ağırlık sessizce kayboluyor — şema geçerli, değer yanlış.
+- **Çözüm yönü:** Prompt değişikliği için ilk aday. Önce/sonra skoruyla ölçülecek.
+
+### A5 (devam). Belirtilen alan atlanıyor — 4 Eki örnekleri
+- 26 `40x9 45x7 yaptım triceps extension dün` → sadece ad, bütün sayılar `null`. Sayılar adın önünde.
+- 27 `85x7x6 eide grip lat pull` → tek kayıt, ikinci rep `sets`'e yazıldı (sets=6).
+
+### A9. RPE ondalığı kesiliyor — AÇIK
+- **Girdiler:** 1, 2, 6 — `rpe 9.5` → `10`.
+- **Sorun:** `ExerciseLLM.rpe: Optional[int]`; şema modeli tam sayıya zorluyor. Eval çalışmadan, etiket yazılırken görüldü.
+- **Çözüm:** `int` → `float`. Önce/sonra farkı görünsün diye ilk skor ölçümünden sonra yapılacak.
+
+### A10. Metinde olmayan birim uyduruluyor — AÇIK
+- **Girdiler:** 7 `wide grip latt pulldown 8 tekrar 80 ...`, 19 `hex swuat ... 60x8 x2` → `unit = kg`.
+- **Sorun:** Etiketleme kuralı 3: birim yazılmadıysa model `null` döner, kg varsayımını kod yapar. Model varsayımı kendisi yapıyor; "belirtilmemiş" ile "kg" ayırt edilemiyor.
+
+### A11. Kısaltma / typo ad kanonikleşmiyor — AÇIK
+- **Örnekler:** `leg ext`, `t bar`, `hammer`, `seated hammer`, `eide grip lat pull`, `tricep extension`, `lat pulldown narrow`.
+- **Sorun:** Model metindeki adı aynen yazıyor. Tire/boşluk normalizasyonu `face pull` = `face-pull` farkını kapatır; kısaltmayı ve typo'yu kapatmaz.
+- **Eval tasarımına etkisi:** Eşleştirme hareket adına göre yapılırsa adı yanlış kaydın sayıları hiç karşılaştırılmaz (örn. 12: sayılar kusursuz, ad `leg ext`). Ad doğruluğu ile sayı doğruluğu ayrı ölçülmeli mi — açık soru.
+- **Çözüm yönü:** A1 ile aynı — kanonik egzersiz listesi, Faz 3.
+
+## B (devam)
+
+### B4. Uzun çoklu girdide `400 json_validate_failed` — AÇIK
+- **Girdiler:** 16 (3 egzersiz, 6 kayıt), 18 (2 egzersiz, 4 kayıt) — en uzun iki girdi.
+- **Gözlem:** Groq `json_validate_failed`, `failed_generation: ''` — model şemaya uyan JSON üretemedi, Instructor 1 denemeden sonra bıraktı. API'den gelse `InstructorRetryException` → 503 olurdu; eval'de `preds = []`, bütün kayıtlar eksik.
+- **Açık soru:** Her koşumda mı, ara sıra mı? Tekrar koşumla bakılacak (D1).
+
+## C (devam)
+
+### C2. Metindeki zaman ifadesi tarihe yansımıyor — KAPANMAZ (bilinçli kabul)
+- **Girdi:** 26 `40x9 45x7 yaptım triceps extension dün` → `workout_date` bugün (kod atıyor, A6).
+- **Karar:** Şimdilik düzeltilmiyor. "yapıcam" girdileri sonradan yazıldığı için bugünün tarihi doğru (etiketleme kuralı 7); sorun sadece "dün" gibi geçmiş ifadelerde.
+
+### C3. Şema egzersiz başına tek set tutuyor — AÇIK
+- **Gözlem:** Gerçek girdilerde setten sete ağırlık/rep değişiyor (`7x80 6x85`). Şemada egzersiz başına tek `sets/reps/weight` var → her farklı set ayrı kayıt (etiketleme kuralı 5).
+- **Çözüm yönü:** Set listeli şema doğru model ama büyük değişiklik — Faz 2 Hafta 4 (Alembic) adayı.
