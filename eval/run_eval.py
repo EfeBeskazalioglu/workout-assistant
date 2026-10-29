@@ -110,13 +110,13 @@ if __name__ == "__main__":
         total_labels += len(case["records"])
         all_pairs.extend(pairs)
         total_extra += len(extra)
-        time.sleep(6)
+        time.sleep(10)
     total_preds = len(all_pairs) + total_extra
-    print(f"Recall: {len(all_pairs)}/{total_labels}")
-    print(f"Precision: {len(all_pairs)}/{total_preds}")
+    print(f"Recall: {len(all_pairs)}/{total_labels} ({len(all_pairs)/total_labels:.0%})")
+    print(f"Precision: {len(all_pairs)}/{total_preds} ({len(all_pairs)/total_preds:.0%})")
     for field in FIELDS:
         correct = 0
         for label,pred in all_pairs:
             if field_correct(label,pred,field):
                 correct += 1
-        print(f"{field}: {correct}/{len(all_pairs)}")
+        print(f"{field}: {correct}/{len(all_pairs)} ({correct/len(all_pairs):.0%})")
