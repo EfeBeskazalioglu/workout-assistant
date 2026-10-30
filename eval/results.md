@@ -32,3 +32,14 @@ Model hepsinde `openai/gpt-oss-20b` (Groq, JSON_SCHEMA, temperature 0).
 - id 18 v1'de üç koşumda da düştü (4 Eki dahil); id 16 4 Eki'de düşmüştü, 29 Eki v1'de geçti.
 - **v2 (A8 prompt):** hayatta kalan çiftlerde `sets` ~50% → 82-89% (aralık dışı), `reps`/`weight` da yukarı. **Ama recall 82% → 55-73%**: `json_validate_failed` başka ve daha çok girdiye kaydı (4, 14, 16, 18). id 4 kısa girdi (`lateral raise 10x10 rpe 9`) → "B4 uzun girdide olur" yanlış, prompt'a bağlı. Düşen çağrılar 2.4-3.7 sn (başarılı <1 sn) → hipotez: reasoning modeli belirsiz girdide (`10x10` eşit sayılar, `90-95 10 8`) uzun düşünüyor ve geçerli JSON üretemiyor. Ondalık → `int` alan hipotezi elendi (4 ve 14'te ondalık yok).
 - **Net etki v2: negatif** (recall kaybı alan kazancından büyük). Karar bekliyor: id 4 izole deneyi (v1 vs v2, 5'er koşum, süre + düşme sayısı).
+
+## Tek girdi deneyi — 30 Eki (`python -m eval.probe`)
+
+id 4 (`lateral raise 10x10 rpe 9`), her prompt 5 çağrı, aralarda 10 sn.
+
+| Prompt | Düşen | Süre |
+|---|---|---|
+| v1 | 0/5 | 0.39–0.57 sn |
+| v2 | 4/5 | düşenler 2.52–2.91 sn, başarılı 0.98 sn |
+
+**Karar (30 Eki):** v2 geri alındı (`git revert 0bb2bf8`). `sets` kazancı gerçek ama best-effort structured output'ta `json_validate_failed`'ı tetikliyor. Kök neden ve sıradaki adım: `failures.md` B4 — strict mod, sonra v2 tekrar ölçülecek.
