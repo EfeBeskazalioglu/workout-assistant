@@ -16,7 +16,7 @@ def test_parse_valid_input_returns_200(monkeypatch):
 
     response = client.post("/parse", json={"text": "3x8 squat 60kg"})
 
-    assert response.status_code == 200
+    assert response.status_code == 201
     assert response.json()["exercises"][0]["exercise_name"] == "squat"
 
 
