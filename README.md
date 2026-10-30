@@ -1,10 +1,10 @@
 # Workout Assistant
-
+![tests](https://github.com/EfeBeskazalioglu/workout-assistant/actions/workflows/tests.yml/badge.svg)
 An AI fitness assistant that turns plain-language workout logs into structured, validated records.
 
 *"benched 135 lbs for 5 reps"* → `{exercise: "bench press", reps: 5, weight: 135, unit: "lb"}`
 
-**Status:** LLM service, tests and a first eval are done. Next: strict structured outputs, CI, Postgres and a live deployment.
+**Status:** LLM service, tests, CI and a first eval are done. Next: Postgres, a web UI and a live deployment.
 
 ## How it works
 
