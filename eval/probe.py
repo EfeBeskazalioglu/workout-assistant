@@ -4,7 +4,12 @@ from eval.run_eval import parser
 
 TEXT = "lateral raise 10x10 rpe 9"
 V1 = "You are a parser that converts exercise sentences into structured workout data."
-V2 = workout_parser.SYSTEM_PROMPT   # şu anki prompt
+V2 = """You are a parser that converts exercise sentences into structured workout data.
+You will be given complex set,repetition,weight numbers therefore AxB can mean weight × reps, reps × weight, or sets × reps.
+The number of sets comes from a trailing single number or expressions like ‘2x’. If sets are not stated, leave them null.
+You must infer the meaning from the magnitude of the numbers.
+If the movement is bodyweight, AxB means sets × reps.
+Generally bigger numbers are for weights.""" 
 
 for name, prompt in [("v1", V1), ("v2", V2)]:
     workout_parser.SYSTEM_PROMPT = prompt
