@@ -5,6 +5,9 @@ Model: `nvidia/nemotron-3.5-lightning:free` (OpenRouter)
 - **15 Eyl:** çıplak API — prompt'ta JSON isteniyor, `json.loads()` ile parse ediliyor.
 - **16 Eyl:** Pydantic + Instructor `response_model`. Prompt tek cümleye indi, şema tek kaynakta.
 - **17 Eyl:** İki katmanlı şema — `WorkoutLog` (modele gösterilen) ve `WorkoutRecord` (uygulamanın kaydı) ayrıldı.
+- **21 Eyl'den beri:** Groq, `openai/gpt-oss-20b`, Instructor `JSON_SCHEMA` modu.
+- **4 Eki:** Eval ilk koşum — `eval/run_eval.py`, 20 etiketli gerçek girdi (`eval/dataset.csv`). Bulgular aşağıda "4 Eki" bölümünde.
+- **29-30 Eki:** Eval skorlama (recall / precision / alan doğruluğu), v1 ve v2 prompt karşılaştırması, `eval/probe.py` ile tek girdi deneyi. Sayılar `eval/results.md`'de; bulgular A8, A11, B4 altında.
 
 | # | Bulgu | Durum |
 |---|---|---|
@@ -22,6 +25,14 @@ Model: `nvidia/nemotron-3.5-lightning:free` (OpenRouter)
 | D1 | temperature=0 deterministik değil | kapanmaz (LLM'in doğası) |
 | D2 | Yanıt süresi değişken | kapanmaz (altyapı) — ama kısmen yanlış yorumlandı, bkz. B3 |
 | D3 | Upstream timeout → API 500 dönüyor | kapandı 21 Eyl (503 + Retry-After) |
+| D4 | Groq rate limit (429) | kapandı 24 Eyl (503) |
+| A8 | `x` gösterimi "set × rep" sanılıyor, ağırlık kayboluyor | **açık** — v2 prompt düzeltti ama B4'ü tetikledi, geri alındı; strict mod sonrası tekrar |
+| A9 | RPE ondalığı kesiliyor (9.5 → 10) | **açık** — `int` → `float` |
+| A10 | Metinde olmayan birim uyduruluyor (`kg`) | **açık** |
+| A11 | Kısaltma / typo egzersiz adı kanonikleşmiyor | **açık** — Faz 3 (A1 ile aynı yön) |
+| B4 | Model şemadan sapınca `400 json_validate_failed` (best-effort structured output) | **açık** — kalıcı çözüm strict mod |
+| C2 | Metindeki zaman ifadesi ("dün") tarihe yansımıyor | kapanmaz (bilinçli kabul) |
+| C3 | Şema egzersiz başına tek set tutuyor | **açık** — Hafta 4 (Alembic) adayı |
 
 ---
 
@@ -131,3 +142,57 @@ Model: `nvidia/nemotron-3.5-lightning:free` (OpenRouter)
 - **Gözlem:** 429 gelince SDK bekleyip tekrar deniyor; cevap verme süresi 4-5 saniyeye çıkıyor.
 - **503:** Tekrar deneme de 429 alırsa Instructor hatayı `InstructorRetryException`'a sarıyor → `parse_or_error` 503 dönüyor. Groq'un hata mesajı (org ID dahil) sadece log'da, istemciye sabit mesaj gidiyor.
 - **Neden 429 değil 503:** Aşılan limit istemcinin değil, bizim kullandığımız LLM sağlayıcısının (Groq); sorun sunucu tarafında olduğu için 503 daha uygun.
+---
+
+## 4 Eki — Eval ilk koşum bulguları
+
+Kaynak: `python -m eval.run_eval`, 20 girdi, girdiler arası 6 sn (D4). Id'ler `eval/dataset.csv`'deki satırlar. Skor henüz yok (eşleştirme + skorlama sonraki adım) — bunlar çıktıya bakarak görülen örüntüler.
+
+### A8. `x` gösterimi "set × rep" sanılıyor — AÇIK
+- **Girdiler:** 2 `pec fly 60x6` → sets=6, reps=60, ağırlık yok · 3 `shd press 25x7` → reps=25, ağırlık yok · 4 `lateral raise 10x10` → sets=10, ağırlık yok · 32 `2x25x6` → reps=25, weight=6 · 30 `hammer 8x12,5x2` → virgülden bölünüp iki anlamsız kayıt.
+- **Sorun:** Etiketleme kuralı 2'de çürütülen "AxB = set × rep" varsayımını model yapıyor. Ağırlık sessizce kayboluyor — şema geçerli, değer yanlış.
+- **Çözüm yönü:** Prompt değişikliği için ilk aday. Önce/sonra skoruyla ölçülecek.
+- **29 Eki — v2 prompt (`0bb2bf8`):** `AxB`'nin üç olası anlamı, set'in sondaki sayıdan / `2x`'ten okunması, ağırlıksız harekette set × rep, büyük sayının ağırlık olması. Eşleşen çiftlerde `sets` ~%50 → %82-89 (v1'in 3 koşumluk aralığının dışında), `reps`/`weight` da yukarı. Ama B4 sıklaştı, recall %82 → %55-73 → net etki negatif.
+- **30 Eki:** v2 geri alındı (revert). Prompt yanlış değil — bugünkü modda zarar veriyor. Strict mod gelince geri getirilip tekrar ölçülecek.
+
+### A5 (devam). Belirtilen alan atlanıyor — 4 Eki örnekleri
+- 26 `40x9 45x7 yaptım triceps extension dün` → sadece ad, bütün sayılar `null`. Sayılar adın önünde.
+- 27 `85x7x6 eide grip lat pull` → tek kayıt, ikinci rep `sets`'e yazıldı (sets=6).
+
+### A9. RPE ondalığı kesiliyor — AÇIK
+- **Girdiler:** 1, 2, 6 — `rpe 9.5` → `10`.
+- **Sorun:** `ExerciseLLM.rpe: Optional[int]`; şema modeli tam sayıya zorluyor. Eval çalışmadan, etiket yazılırken görüldü.
+- **Çözüm:** `int` → `float`. Önce/sonra farkı görünsün diye ilk skor ölçümünden sonra yapılacak.
+
+### A10. Metinde olmayan birim uyduruluyor — AÇIK
+- **Girdiler:** 7 `wide grip latt pulldown 8 tekrar 80 ...`, 19 `hex swuat ... 60x8 x2` → `unit = kg`.
+- **Sorun:** Etiketleme kuralı 3: birim yazılmadıysa model `null` döner, kg varsayımını kod yapar. Model varsayımı kendisi yapıyor; "belirtilmemiş" ile "kg" ayırt edilemiyor.
+
+### A11. Kısaltma / typo ad kanonikleşmiyor — AÇIK
+- **Örnekler:** `leg ext`, `t bar`, `hammer`, `seated hammer`, `eide grip lat pull`, `tricep extension`, `lat pulldown narrow`.
+- **Sorun:** Model metindeki adı aynen yazıyor. Tire/boşluk normalizasyonu `face pull` = `face-pull` farkını kapatır; kısaltmayı ve typo'yu kapatmaz.
+- **Eval tasarımına etkisi:** Eşleştirme hareket adına göre yapılırsa adı yanlış kaydın sayıları hiç karşılaştırılmaz (örn. 12: sayılar kusursuz, ad `leg ext`). Ad doğruluğu ile sayı doğruluğu ayrı ölçülmeli mi — açık soru.
+- **29 Eki — çözüldü:** Eşleştirme ada göre değil, en çok alanı tutan kayda göre (`match_records`); ad ayrı bir alan olarak skorlanıyor (`exercise`). `leg ext` artık sayılarıyla eşleşiyor, sadece `exercise` alanı yanlış sayılıyor.
+- **Çözüm yönü:** A1 ile aynı — kanonik egzersiz listesi, Faz 3.
+
+## B (devam)
+
+### B4. Model şemadan sapınca `400 json_validate_failed` — AÇIK
+- **Girdiler (4 Eki):** 16 (3 egzersiz, 6 kayıt), 18 (2 egzersiz, 4 kayıt) — en uzun iki girdi.
+- **Gözlem:** Groq `json_validate_failed`, `failed_generation: ''` — model şemaya uyan JSON üretemedi, Instructor 1 denemeden sonra bıraktı. API'den gelse `InstructorRetryException` → 503 olurdu; eval'de `preds = []`, bütün kayıtlar eksik.
+- **29 Eki — v1, 3 koşum:** id 18 üçünde de düştü (her seferinde), id 16 geçti → ara sıra değil, girdiye bağlı.
+- **29 Eki — v2, 3 koşum:** düşen girdiler değişti ve çoğaldı: 4, 14, 16, 18. id 4 kısa bir girdi (`lateral raise 10x10 rpe 9`) → "uzun girdide olur" varsayımı yanlış.
+- **30 Eki — tek girdi deneyi (`eval/probe.py`, id 4, 5'er çağrı):** v1 **0/5** düştü (0.4-0.6 sn) · v2 **4/5** düştü (düşenler 2.5-2.9 sn, tek başarılı 0.98 sn). Aynı girdi, aynı model, tek fark prompt → v2 tetikliyor. Düşenler 5-6 kat uzun: model cevaptan önce çok daha fazla üretiyor (reasoning modeli). Hipotez: v2 modelden karar istiyor, `10x10`'da iki sayı eşit → "büyük sayı ağırlık" kuralı karar veremiyor. Hangi cümlenin tetiklediği test edilmedi.
+- **Kök neden:** Groq structured outputs iki modlu — `strict: true` (constrained decoding, geçersiz JSON üretemez) ve `strict: false` (varsayılan, best-effort, ara sıra 400). Instructor 1.17 `JSON_SCHEMA` modunda `response_format`'a `strict` koymuyor (kaynak kodda doğrulandı) → best-effort. Model şemadan ne zaman saparsa 400. v2 ve belirsiz girdiler (18) sadece tetikleyici.
+- **Elenen:** ondalık → `int` alan hipotezi (4 ve 14'te ondalık yok). `reasoning_effort="low"` denenmedi — v2'nin istediği akıl yürütmeyi kısar, `sets` kazancını geri verebilir; hatanın oluşma yolunu kapatmaz.
+- **Çözüm yönü:** Strict mod (`feature/strict-schema`). Gerekenler: `response_format`'ı `"strict": True` ile kendimiz kurmak (Instructor bu alanı yazmıyor), tüm alanlar required + nullable, `extra="forbid"` (`additionalProperties: false`), mock'lu testlerin güncellenmesi. Sonra: probe v2 ile tekrar, eval 3 koşum, v2'yi geri getirme.
+
+## C (devam)
+
+### C2. Metindeki zaman ifadesi tarihe yansımıyor — KAPANMAZ (bilinçli kabul)
+- **Girdi:** 26 `40x9 45x7 yaptım triceps extension dün` → `workout_date` bugün (kod atıyor, A6).
+- **Karar:** Şimdilik düzeltilmiyor. "yapıcam" girdileri sonradan yazıldığı için bugünün tarihi doğru (etiketleme kuralı 7); sorun sadece "dün" gibi geçmiş ifadelerde.
+
+### C3. Şema egzersiz başına tek set tutuyor — AÇIK
+- **Gözlem:** Gerçek girdilerde setten sete ağırlık/rep değişiyor (`7x80 6x85`). Şemada egzersiz başına tek `sets/reps/weight` var → her farklı set ayrı kayıt (etiketleme kuralı 5).
+- **Çözüm yönü:** Set listeli şema doğru model ama büyük değişiklik — Faz 2 Hafta 4 (Alembic) adayı.

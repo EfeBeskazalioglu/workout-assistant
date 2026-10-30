@@ -4,7 +4,7 @@ An AI fitness assistant that turns plain-language workout logs into structured, 
 
 *"benched 135 lbs for 5 reps"* → `{exercise: "bench press", reps: 5, weight: 135, unit: "lb"}`
 
-**Status:** Phase 1 (LLM service) is nearly complete. Next: tests, evals, CI and a live deployment.
+**Status:** LLM service, tests and a first eval are done. Next: strict structured outputs, CI, Postgres and a live deployment.
 
 ## How it works
 
@@ -12,7 +12,7 @@ An AI fitness assistant that turns plain-language workout logs into structured, 
 POST text → FastAPI → LLM (via Instructor, JSON schema mode) → Pydantic validation → SQLite
 ```
 
-- **Schema-constrained output:** the model must answer in a Pydantic schema, enforced by [Instructor](https://python.useinstructor.com/) in JSON schema mode. It can't return free text or broken JSON.
+- **Schema-constrained output:** the model must answer in a Pydantic schema, sent by [Instructor](https://python.useinstructor.com/) in JSON schema mode and validated on return. It can't return free text; when its output doesn't fit the schema, the provider rejects it (see B4 under known limitations).
 - **Two-layer schema:** the model only sees `WorkoutLLM` (the exercises). The application model `WorkoutRecord` adds fields the model should never invent, like the workout date, and runs checks such as "at least one exercise" after the model answers.
 - **Constrained fields:** units are an enum (`kg` / `lb`), exercise names are normalised, and missing values stay `null` instead of being guessed.
 - **Provider-agnostic:** works with any OpenAI-compatible endpoint, configured through three environment variables. It currently runs on [Groq](https://groq.com) with `openai/gpt-oss-20b` (under 1 s per call).
@@ -40,9 +40,29 @@ Request body for both `POST` endpoints:
 | `422` | The input has no recognisable exercise (e.g. *"chest day felt strong"*) | The client can fix it by sending a more specific log |
 | `503` + `Retry-After` | The LLM provider timed out or hit its rate limit | The problem is on the server side and temporary; the same request may succeed later |
 
+## Evaluation
+
+The eval set is 20 real workout logs from my own training, labelled by hand into 33 expected records using written [labelling rules](eval/labeling_rules.md). Each model record is matched to the label it shares the most fields with, so a misspelt exercise name doesn't hide correct numbers. Then three things are scored:
+
+| Metric | Question | Baseline |
+|---|---|---|
+| Recall | How many labelled records did the model capture? | 82% (27/33) |
+| Precision | How many of the model's records are real? | 93% (27/29) |
+| Field accuracy | On matched records, how often is each field right? A value the model invents for an empty field counts as wrong. | exercise 63–70% · sets 44–59% · reps 78–89% · weight 74–85% · unit 52–70% · rpe 89% |
+
+Baseline: current prompt, `openai/gpt-oss-20b` on Groq, range over 3 runs. With identical settings, field scores move by 2–4 records from run to run, so a change only counts if it moves a field outside this range.
+
+First experiment: a prompt explaining the `AxB` notation (`60x6` = 60 kg × 6 reps, not 6 sets × 60 reps) raised `sets` accuracy to 82–89%, but made schema rejections (B4) far more frequent and recall fell to 55–73%. A single-input test confirmed it: the same log failed 0/5 times with the old prompt and 4/5 with the new one. The prompt was reverted; strict structured outputs come first. All runs are in [`eval/results.md`](eval/results.md).
+
+```bash
+python -m eval.run_eval   # full eval, ~3.5 min (rate limit)
+python -m eval.probe      # one input, old vs new prompt
+python -m pytest          # unit tests, LLM mocked
+```
+
 ## Failure log
 
-[`failures.md`](failures.md) is the core of this project. It records every way the model broke across runs, with the input, the output, and whether the issue is closed. It currently tracks 15 failure modes. Examples:
+[`failures.md`](failures.md) is the core of this project. It records every way the model broke across runs, with the input, the output, and whether the issue is closed. It currently tracks 22 failure modes. Examples:
 
 - A schema constraint (`min_length=1`) pushed the model to *hallucinate* a fake exercise instead of honestly returning an empty list. The fix was to move that check from the LLM-facing schema to the application model.
 - Calls took 30–50 s. Switching providers didn't help; measuring did: Instructor's default tool-calling mode was silently retrying because the model kept renaming schema fields. JSON schema mode brought calls under 1 s.
@@ -53,7 +73,9 @@ The rule this project follows: fix failures in the schema and the code, not by a
 ## Known limitations
 
 - **Turkish exercise names** ("mekik" = sit-up) are not mapped to standard names (failure A1). Planned: retrieval over a known exercise list.
-- **Fields are sometimes dropped** even when stated in the input (A5). Planned: measured as a rate in the eval set.
+- **Fields are sometimes dropped** even when stated in the input (A5). Now measured: see field accuracy above.
+- **Schema rejections:** some inputs make the model produce output that doesn't fit the schema, and Groq returns `400 json_validate_failed` (B4). One eval input fails on every run. Cause: Groq's default best-effort structured outputs; Instructor doesn't request strict mode. Planned: strict mode (constrained decoding).
+- **`AxB` notation** is often read as sets × reps, so the weight is lost (A8). A prompt fix works but triggers B4; it waits for strict mode.
 - **Rate limit:** the free Groq tier allows about 11 requests per minute. Near the limit, requests slow down to 4–5 s while the SDK retries; past it, the API returns `503` (D4).
 - **Storage** is a local SQLite file. Planned: Postgres with migrations.
 
@@ -96,7 +118,8 @@ Settings are read once at startup, so restart the server after changing `.env`.
 - Storage in SQLite
 - Tests with a mocked LLM, run in CI on every pull request
 - Eval set built from real logs, with per-field accuracy reported as a rate
-- Postgres (Neon) with Alembic migrations-  Web UI and a live deployment
+- Postgres (Neon) with Alembic migrations
+- Web UI and a live deployment
 - Retrieval over a known exercise list and an agent that answers questions about your training history
 
 ## Stack
