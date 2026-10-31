@@ -13,6 +13,7 @@ jobs:
       LLM_API_KEY: dummy
       LLM_MODEL: dummy
       LLM_BASE_URL: http://localhost
+      DATABASE_URL: sqlite:///workouts.db
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
