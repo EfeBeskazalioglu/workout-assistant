@@ -24,7 +24,7 @@ class ExerciseOut(BaseModel):
     reps: int | None
     weight: float | None
     unit: str | None
-    rpe: int | None
+    rpe: float | None
     model_config = {"from_attributes": True}
 
 class WorkoutOut(BaseModel):

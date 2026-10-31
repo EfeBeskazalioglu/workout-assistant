@@ -27,5 +27,5 @@ class ExerciseDB(Base):
     reps: Mapped[int | None]
     weight: Mapped[float | None]
     unit: Mapped[str | None]
-    rpe: Mapped[int | None]
+    rpe: Mapped[float | None]
     workout: Mapped["WorkoutDB"] = relationship(back_populates="exercises")
