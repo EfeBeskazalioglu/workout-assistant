@@ -34,7 +34,7 @@ class ExerciseLLM(BaseModel):
     reps: Optional[int] = None
     weight: Optional[float] = None
     unit: Optional[Unit] = None
-    rpe: Optional[int] = None
+    rpe: Optional[float] = None
 #Modele verilen
 class WorkoutLLM(BaseModel):
     exercises: list[ExerciseLLM]
