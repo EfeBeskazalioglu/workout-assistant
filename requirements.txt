@@ -46,6 +46,8 @@ openai==3.3.0
 packaging==26.3
 pluggy==1.6.0
 propcache==0.5.4
+psycopg==3.3.6
+psycopg-binary==3.3.6
 pyasn1==0.6.4
 pyasn1_modules==0.4.2
 pycparser==3.0
@@ -73,6 +75,7 @@ truststore==0.10.4
 typer==0.27.2
 typing-inspection==0.4.4
 typing_extensions==4.16.0
+tzdata==2026.6
 urllib3==2.7.0
 uvicorn==0.53.0
 watchfiles==1.2.0
