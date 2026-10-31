@@ -27,12 +27,12 @@ Model: `nvidia/nemotron-3.5-lightning:free` (OpenRouter)
 | D3 | Upstream timeout → API 500 dönüyor | kapandı 21 Eyl (503 + Retry-After) |
 | D4 | Groq rate limit (429) | kapandı 24 Eyl (503) |
 | A8 | `x` gösterimi "set × rep" sanılıyor, ağırlık kayboluyor | **açık** — v2 prompt düzeltti ama B4'ü tetikledi, geri alındı; strict mod sonrası tekrar |
-| A9 | RPE ondalığı kesiliyor (9.5 → 10) | **açık** — `int` → `float` |
+| A9 | RPE ondalığı kesiliyor (9.5 → 10) | kapandı (31 Eki) — üç katmanda `float` + migration |
 | A10 | Metinde olmayan birim uyduruluyor (`kg`) | **açık** |
 | A11 | Kısaltma / typo egzersiz adı kanonikleşmiyor | **açık** — Faz 3 (A1 ile aynı yön) |
 | B4 | Model şemadan sapınca `400 json_validate_failed` (best-effort structured output) | **açık** — kalıcı çözüm strict mod |
 | C2 | Metindeki zaman ifadesi ("dün") tarihe yansımıyor | kapanmaz (bilinçli kabul) |
-| C3 | Şema egzersiz başına tek set tutuyor | **açık** — Hafta 4 (Alembic) adayı |
+| C3 | Şema egzersiz başına tek set tutuyor | **açık** — deploy sonrası (31 Eki: Alembic hazır, şema yeniden tasarımı deploy zincirini bekletmez) |
 
 ---
 
@@ -159,10 +159,11 @@ Kaynak: `python -m eval.run_eval`, 20 girdi, girdiler arası 6 sn (D4). Id'ler `
 - 26 `40x9 45x7 yaptım triceps extension dün` → sadece ad, bütün sayılar `null`. Sayılar adın önünde.
 - 27 `85x7x6 eide grip lat pull` → tek kayıt, ikinci rep `sets`'e yazıldı (sets=6).
 
-### A9. RPE ondalığı kesiliyor — AÇIK
+### A9. RPE ondalığı kesiliyor — KAPANDI (31 Eki)
 - **Girdiler:** 1, 2, 6 — `rpe 9.5` → `10`.
 - **Sorun:** `ExerciseLLM.rpe: Optional[int]`; şema modeli tam sayıya zorluyor. Eval çalışmadan, etiket yazılırken görüldü.
 - **Çözüm:** `int` → `float`. Önce/sonra farkı görünsün diye ilk skor ölçümünden sonra yapılacak.
+- **31 Eki — kapandı:** `rpe` üç katmanda `float`: `ExerciseLLM` (LLM şeması), `ExerciseDB` (tablo), `ExerciseOut` (API cevabı) — biri `int` kalsa değer o katmanda yuvarlanır. Tablo için Alembic migration (`def6a624bd1e`, batch mode — SQLite `ALTER COLUMN` desteklemiyor). Uçtan uca: `bench press 3x8 80kg rpe 9.5` → Neon'a 9.5 yazıldı, API 9.5 döndü. Eval'de `rpe` skoru (v1 baz çizgi %89, kaçanlar tam bu 3 girdi) henüz yeniden ölçülmedi.
 
 ### A10. Metinde olmayan birim uyduruluyor — AÇIK
 - **Girdiler:** 7 `wide grip latt pulldown 8 tekrar 80 ...`, 19 `hex swuat ... 60x8 x2` → `unit = kg`.

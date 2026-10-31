@@ -1,15 +1,16 @@
 # Workout Assistant
 ![tests](https://github.com/EfeBeskazalioglu/workout-assistant/actions/workflows/tests.yml/badge.svg)
+
 An AI fitness assistant that turns plain-language workout logs into structured, validated records.
 
 *"benched 135 lbs for 5 reps"* → `{exercise: "bench press", reps: 5, weight: 135, unit: "lb"}`
 
-**Status:** LLM service, tests, CI and a first eval are done. Next: Postgres, a web UI and a live deployment.
+**Status:** LLM service, tests, CI, a first eval and Postgres with migrations are done. Next: a web UI and a live deployment.
 
 ## How it works
 
 ```
-POST text → FastAPI → LLM (via Instructor, JSON schema mode) → Pydantic validation → SQLite
+POST text → FastAPI → LLM (via Instructor, JSON schema mode) → Pydantic validation → Postgres (Neon)
 ```
 
 - **Schema-constrained output:** the model must answer in a Pydantic schema, sent by [Instructor](https://python.useinstructor.com/) in JSON schema mode and validated on return. It can't return free text; when its output doesn't fit the schema, the provider rejects it (see B4 under known limitations).
@@ -17,6 +18,7 @@ POST text → FastAPI → LLM (via Instructor, JSON schema mode) → Pydantic va
 - **Constrained fields:** units are an enum (`kg` / `lb`), exercise names are normalised, and missing values stay `null` instead of being guessed.
 - **Provider-agnostic:** works with any OpenAI-compatible endpoint, configured through three environment variables. It currently runs on [Groq](https://groq.com) with `openai/gpt-oss-20b` (under 1 s per call).
 - **Logging:** every LLM call is logged with its duration; failures are logged with the upstream error, which is never sent to the client.
+- **Database and migrations:** the database URL comes from the environment — SQLite locally, Postgres on [Neon](https://neon.com) in production. The schema is managed with [Alembic](https://alembic.sqlalchemy.org/) migrations, not `create_all`, so existing tables can change without losing data. Migrations run in batch mode, so the same files work on SQLite (which can't alter a column) and on Postgres.
 
 ## API
 
@@ -77,7 +79,6 @@ The rule this project follows: fix failures in the schema and the code, not by a
 - **Schema rejections:** some inputs make the model produce output that doesn't fit the schema, and Groq returns `400 json_validate_failed` (B4). One eval input fails on every run. Cause: Groq's default best-effort structured outputs; Instructor doesn't request strict mode. Planned: strict mode (constrained decoding).
 - **`AxB` notation** is often read as sets × reps, so the weight is lost (A8). A prompt fix works but triggers B4; it waits for strict mode.
 - **Rate limit:** the free Groq tier allows about 11 requests per minute. Near the limit, requests slow down to 4–5 s while the SDK retries; past it, the API returns `503` (D4).
-- **Storage** is a local SQLite file. Planned: Postgres with migrations.
 
 ## Setup
 
@@ -97,31 +98,38 @@ The rule this project follows: fix failures in the schema and the code, not by a
    LLM_API_KEY=your-groq-key
    LLM_BASE_URL=https://api.groq.com/openai/v1
    LLM_MODEL=openai/gpt-oss-20b
+   DATABASE_URL=sqlite:///workouts.db
    ```
 
-   Optional: `TIMEOUT` (seconds per LLM call, default 15).
+   Optional: `TIMEOUT` (seconds per LLM call, default 15). For Postgres, use a URL of the form `postgresql+psycopg://user:password@host/db?sslmode=require`.
 
-3. Start the server:
+3. Create the tables:
+
+   ```bash
+   alembic upgrade head
+   ```
+
+4. Start the server:
 
    ```bash
    fastapi dev main.py
    ```
 
-4. Open the interactive docs at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) and try the endpoints.
+5. Open the interactive docs at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) and try the endpoints.
 
 Settings are read once at startup, so restart the server after changing `.env`.
 
-## Next Steps
+## Roadmap
 
-- LLM parsing into validated structured data
-- FastAPI service with error handling and logging
-- Storage in SQLite
-- Tests with a mocked LLM, run in CI on every pull request
-- Eval set built from real logs, with per-field accuracy reported as a rate
-- Postgres (Neon) with Alembic migrations
-- Web UI and a live deployment
-- Retrieval over a known exercise list and an agent that answers questions about your training history
+- [x] LLM parsing into validated structured data
+- [x] FastAPI service with error handling and logging
+- [x] Tests with a mocked LLM, run in CI on every pull request
+- [x] Eval set built from real logs, with per-field accuracy reported as a rate
+- [x] Postgres (Neon) with Alembic migrations
+- [ ] Web UI and a live deployment
+- [ ] Strict structured outputs, then the `AxB` prompt fix re-measured
+- [ ] Retrieval over a known exercise list and an agent that answers questions about your training history
 
 ## Stack
 
-Python · FastAPI · Pydantic · pydantic-settings · Instructor · OpenAI SDK · SQLAlchemy · SQLite
+Python · FastAPI · Pydantic · pydantic-settings · Instructor · OpenAI SDK · SQLAlchemy · Alembic · PostgreSQL (Neon) · SQLite · pytest · GitHub Actions
