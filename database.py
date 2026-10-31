@@ -29,5 +29,3 @@ class ExerciseDB(Base):
     unit: Mapped[str | None]
     rpe: Mapped[int | None]
     workout: Mapped["WorkoutDB"] = relationship(back_populates="exercises")
-
-Base.metadata.create_all(engine)
